@@ -11,7 +11,6 @@ import Foundation
 import Speech
 
 
-
 struct ContentView: View {
     var body: some View {
         NavigationStack {
@@ -21,8 +20,112 @@ struct ContentView: View {
 }
 
 
+struct MainMenuView: View {
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 40) {
+                Text("AAC App")
+                    .font(.largeTitle)
+                    .bold()
+
+                NavigationLink("Patient Mode") {
+                    PatientMenuView()
+                }
+                .font(.title2)
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+
+                NavigationLink("Caregiver Mode") {
+                    CaregiverMenuView()
+                }
+                .font(.title2)
+                .padding()
+                .background(Color.gray)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+
+                Spacer()
+            }
+            .padding()
+        }
+    }
+}
+
+struct PatientMenuView: View {
+    var body: some View {
+        VStack(spacing: 40) {
+            Text("Patient Tools")
+                .font(.largeTitle)
+                .bold()
+
+            NavigationLink("Core Vocabulary") {
+                CoreVocabView()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+
+            NavigationLink("Make Your Own") {
+                CustomWordsView()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.green)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+
+            NavigationLink("Speech to Text") {
+                SpeechToTextView()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.orange)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+
+            NavigationLink("Therapy") {
+                TherapySessionView()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.pink)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("Patient Mode")
+    }
+}
 
 
+struct CaregiverMenuView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Caregiver Mode")
+                .font(.largeTitle)
+                .bold()
+
+            Text("Tools for caregivers will appear here.")
+                .foregroundColor(.gray)
+                .padding()
+
+            Spacer()
+        }
+        .padding()
+        .navigationTitle("Caregiver Mode")
+    }
+}
+
+
+
+
+/*
 struct MainMenuView: View {
     var body: some View {
         VStack(spacing: 40) {
@@ -65,13 +168,14 @@ struct MainMenuView: View {
             .background(Color.pink)
             .foregroundColor(.white)
             .cornerRadius(12)
+            
 
             Spacer()
         }
         .padding()
     }
 }
-
+*/
 
 
 
@@ -149,10 +253,6 @@ struct CoreVocabView: View {
         AVSpeechSynthesizer().speak(utterance)
     }
 }
-
-
-
-
 
 
 
@@ -555,14 +655,8 @@ struct SpeechToTextView: View {
 struct TherapySessionView: View {
     @ObservedObject var speechManager = SpeechRecognizerManager()
 
-    // List of prompts for this session
-    let prompts = [
-        "I want some juice.",
-        "Can I go outside?",
-        "The weather is nice today.",
-        "I need help, please.",
-        "Where is my phone?"
-    ]
+    // List of image prompts (use asset names)
+    let prompts = ["apple", "basketball", "baseball", "banana", "donut"]
 
     @State private var currentIndex = 0
     @State private var userTranscription = ""
@@ -582,11 +676,11 @@ struct TherapySessionView: View {
                 Text("Prompt \(currentIndex + 1) of \(prompts.count)")
                     .font(.headline)
 
-                Text("Say this:")
-                Text("“\(prompts[currentIndex])”")
-                    .font(.title2)
-                    .padding()
-                    .background(Color.yellow.opacity(0.3))
+                Text("Describe this:")
+                Image(prompts[currentIndex])
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 150)
                     .cornerRadius(10)
 
                 Divider()
@@ -615,8 +709,7 @@ struct TherapySessionView: View {
                             let transcription = speechManager.transcribedText
                             userTranscription = transcription
                             speechManager.stopRecording()
-                            print("calling evaluateResponse")
-                            evaluateResponse(userSpeech: transcription, expected: prompts[currentIndex])
+                            evaluateResponse(userSpeech: transcription, expectedImageName: prompts[currentIndex])
                         } else {
                             feedback = ""
                             score = nil
@@ -654,20 +747,19 @@ struct TherapySessionView: View {
         }
     }
 
-    func evaluateResponse(userSpeech: String, expected: String) {
+    func evaluateResponse(userSpeech: String, expectedImageName: String) {
         guard let apiKey = loadOpenAIKeyFromInfoPlist() else {
             feedback = "Missing API key."
             return
         }
-        print("API key "+apiKey)
+
         let prompt = """
-        A person with aphasia is practicing speaking. The correct sentence was:
-        "\(expected)"
+        A person with aphasia is describing an object in an image. The image shows: \(expectedImageName).
 
         They said:
         "\(userSpeech)"
 
-        Please give helpful feedback and a score out of 10 based on how close their speech was to the correct sentence. Be kind and constructive.
+        Please give short and kind feedback (1-2 sentences max), and include a score from 0 to 10 written like 'Score: X/10' at the end.
         """
 
         let payload: [String: Any] = [
@@ -685,7 +777,6 @@ struct TherapySessionView: View {
             return
         }
 
-        print("apiKey: "+apiKey)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -704,27 +795,39 @@ struct TherapySessionView: View {
                 return
             }
 
-            DispatchQueue.main.async {
-                feedback = content
+            let trimmedFeedback = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("GPT returned: \(trimmedFeedback)")
 
-                // Extract score from GPT response
-                if let match = content.range(of: #"([0-9]{1,2})\/10"#, options: .regularExpression) {
-                    let scoreStr = content[match].prefix(while: { $0.isNumber })
+            DispatchQueue.main.async {
+                feedback = trimmedFeedback
+
+                // Extract score (any number 0–10 with or without 'Score: ')
+                if let match = trimmedFeedback.range(of: #"(?i)score[:\s]*([0-9]{1,2})\s*/\s*10"#, options: .regularExpression) {
+                    let scoreStr = String(trimmedFeedback[match]).components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
                     if let s = Int(scoreStr) {
                         score = s
+
+                        // Auto-advance after 1.5s if score is 7+
+                        if s >= 7 {
+                            // Delay auto-advance to allow time for reading feedback
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                                // Only auto-advance if user hasn’t manually tapped “Next”
+                                if score == s && feedback == trimmedFeedback {
+                                    advanceToNextPrompt()
+                                }
+                            }
+                        }
                     }
                 }
             }
         }.resume()
     }
 
+
     func loadOpenAIKeyFromInfoPlist() -> String? {
         Bundle.main.object(forInfoDictionaryKey: "OpenAI_API_Key") as? String
     }
 }
-
-
-
 
 
 struct WordPanel: View {

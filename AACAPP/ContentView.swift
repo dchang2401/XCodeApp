@@ -868,3 +868,98 @@ struct WordPanel: View {
         }
     }
 }
+import SwiftUI
+
+struct CaregiverSurveyView: View {
+    @State private var answers: [Int?] = Array(repeating: nil, count: 5)
+    @State private var showResult = false
+    
+    let questions = [
+        "How well can your loved one understand spoken language?",
+        "How clearly can they express their thoughts verbally?",
+        "Do they often use the wrong words or say things that don't make sense?",
+        "How independent are they with communication needs?",
+        "How often do they rely on visual cues (like pictures or gestures)?"
+    ]
+
+    let options = [
+        "Not at all",
+        "Somewhat",
+        "Moderately",
+        "Quite a bit",
+        "Extremely"
+    ]
+
+    var body: some View {
+        NavigationView {
+            Form {
+                ForEach(0..<questions.count, id: \ .self) { index in
+                    Section(header: Text(questions[index])) {
+                        Picker("", selection: Binding(
+                            get: { answers[index] ?? 0 },
+                            set: { answers[index] = $0 }
+                        )) {
+                            ForEach(0..<options.count, id: \ .self) { i in
+                                Text(options[i]).tag(i)
+                            }
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    }
+                }
+
+                Button("See Mode Recommendation") {
+                    showResult = true
+                }
+                .disabled(answers.contains(where: { $0 == nil }))
+            }
+            .navigationTitle("Caregiver Survey")
+            .sheet(isPresented: $showResult) {
+                ModeRecommendationView(answers: answers.compactMap { $0 })
+            }
+        }
+    }
+}
+
+struct ModeRecommendationView: View {
+    let answers: [Int]
+
+    var modeRecommendation: String {
+        let comprehension = answers[0]
+        let expression = answers[1]
+        let confusion = answers[2]
+        let independence = answers[3]
+        let visualCues = answers[4]
+
+        // Sample scoring logic
+        if expression <= 1 && comprehension <= 1 {
+            return "We recommend: Mode 1 (Symbol-Based Communication)."
+        } else if expression >= 3 && comprehension >= 3 && confusion <= 2 {
+            return "We recommend: Mode 2 (Sentence Refining Tool)."
+        } else {
+            return "We recommend: Both Modes (Symbol + Sentence Tool)."
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("Survey Result")
+                .font(.title2).bold()
+
+            Text(modeRecommendation)
+                .multilineTextAlignment(.center)
+                .padding()
+                .font(.headline)
+
+            Button("Close") {
+                UIApplication.shared.windows.first?.rootViewController?.dismiss(animated: true)
+            }
+        }
+        .padding()
+    }
+}
+
+struct CaregiverSurveyView_Previews: PreviewProvider {
+    static var previews: some View {
+        CaregiverSurveyView()
+    }
+}

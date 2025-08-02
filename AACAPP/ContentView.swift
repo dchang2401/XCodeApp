@@ -250,9 +250,19 @@ struct CoreVocabView: View {
 
     func speak(_ text: String) {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        
+        // Try to find your installed Siri Voice 4 or fallback to default
+        if let siriVoice4 = AVSpeechSynthesisVoice.speechVoices().first(where: { $0.name.contains("Siri") && $0.language == "en-US" }) {
+            utterance.voice = siriVoice4
+            print("Using Siri Voice 4: \(siriVoice4.name)")
+        } else {
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+            print("Using default en-US voice")
+        }
+        
         AVSpeechSynthesizer().speak(utterance)
     }
+
 }
 
 
@@ -342,9 +352,19 @@ struct CustomWordsView: View {
 
     func speak(_ text: String) {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        
+        // Try to find your installed Siri Voice 4 or fallback to default
+        if let siriVoice4 = AVSpeechSynthesisVoice.speechVoices().first(where: { $0.name.contains("Siri") && $0.language == "en-US" }) {
+            utterance.voice = siriVoice4
+            print("Using Siri Voice 4: \(siriVoice4.name)")
+        } else {
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+            print("Using default en-US voice")
+        }
+        
         AVSpeechSynthesizer().speak(utterance)
     }
+
 }
 
 
@@ -412,13 +432,16 @@ class SpeechRecognizerManager: NSObject, ObservableObject {
     */
     
     func startRecording() {
-        transcribedText = ""
-        isRecording = true
+        // Reset previous task if any
+        if recognitionTask != nil {
+            recognitionTask?.cancel()
+            recognitionTask = nil
+        }
 
-        // 1. Configure AVAudioSession
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+            // Change category from `.record` to `.playAndRecord`
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("Audio session setup failed: \(error.localizedDescription)")
@@ -426,55 +449,61 @@ class SpeechRecognizerManager: NSObject, ObservableObject {
             return
         }
 
-        // 2. Prepare recognition request
+
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let recognitionRequest = recognitionRequest else { return }
+        guard let recognitionRequest = recognitionRequest else {
+    
+            return
+        }
 
         recognitionRequest.shouldReportPartialResults = true
-        recognitionRequest.requiresOnDeviceRecognition = false // try this as a fallback
+        recognitionRequest.requiresOnDeviceRecognition = false  // you can try 'true' here as fallback
 
-        // 3. Cancel any previous task
-        recognitionTask?.cancel()
-        recognitionTask = nil
+        let inputNode = audioEngine.inputNode
 
-        // 4. Start recognition task
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            guard let self = self else { return }
-
+        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { result, error in
             if let result = result {
                 DispatchQueue.main.async {
                     self.transcribedText = result.bestTranscription.formattedString
                 }
             }
 
-            if error != nil || (result?.isFinal ?? false) {
-                DispatchQueue.main.async {
-                    self.isRecording = false
-                }
+            if let error = error {
+                print("Recognition Error: \(error.localizedDescription)")
+                self.stopRecording()
             }
         }
 
-        // 5. Start capturing microphone audio
-        let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
+        inputNode.removeTap(onBus: 0)  // <-- IMPORTANT: Remove old taps first
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-            recognitionRequest.append(buffer)
+            self.recognitionRequest?.append(buffer)
         }
 
-        audioEngine.prepare()
         do {
+            audioEngine.prepare()
             try audioEngine.start()
+            isRecording = true
+            print("Recording started successfully")
         } catch {
-            print("Audio engine failed to start: \(error.localizedDescription)")
+            print("Audio Engine couldn't start: \(error.localizedDescription)")
             isRecording = false
         }
     }
-    
+
     func stopRecording() {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
+        recognitionTask = nil
+
+        do {
+            try AVAudioSession.sharedInstance().setActive(false)
+        } catch {
+            print("Failed to deactivate audio session: \(error.localizedDescription)")
+        }
+
         isRecording = false
     }
 }
@@ -581,10 +610,19 @@ struct SpeechToTextView: View {
     
     func speak(_ text: String) {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        
+        // Try to find your installed Siri Voice 4 or fallback to default
+        if let siriVoice4 = AVSpeechSynthesisVoice.speechVoices().first(where: { $0.name.contains("Siri") && $0.language == "en-US" }) {
+            utterance.voice = siriVoice4
+            print("Using Siri Voice 4: \(siriVoice4.name)")
+        } else {
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+            print("Using default en-US voice")
+        }
+        
         AVSpeechSynthesizer().speak(utterance)
     }
-    
+
     func loadOpenAIKeyFromInfoPlist() -> String? {
         Bundle.main.object(forInfoDictionaryKey: "OpenAI_API_Key") as? String
     }
@@ -871,12 +909,15 @@ struct WordPanel: View {
 }
 import SwiftUI
 
+import SwiftUI
+
 struct SurveyView: View {
     @State private var q1Selection = ""
     @State private var q2Selection = ""
     @State private var q3Selection = ""
     @State private var q4Selection = ""
     @State private var q5Selection = ""
+    @State private var showRecommendation = false
     @State private var recommendation = ""
 
     let q1Options = ["Fewer than 10", "10 to 50", "More than 50"]
@@ -886,45 +927,81 @@ struct SurveyView: View {
     let q5Options = ["Most sentences are broken or telegraphic", "Somewhat ungrammatical but understandable", "Mostly complete and grammatically correct"]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Aphasia Communication Mode Survey")
-                    .font(.largeTitle)
-                    .bold()
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Aphasia Communication Mode Survey")
+                        .font(.largeTitle)
+                        .bold()
+                        .padding(.bottom, 20)
 
-                Group {
-                    QuestionPicker(title: "1. How many different words does the person regularly use when speaking?", options: q1Options, selection: $q1Selection)
-                    QuestionPicker(title: "2. Does the person usually form sentences or combine words into longer utterances?", options: q2Options, selection: $q2Selection)
-                    QuestionPicker(title: "3. How often is what they say relevant and accurate to the conversation?", options: q3Options, selection: $q3Selection)
-                    QuestionPicker(title: "4. Does the person seem aware when their words don't make sense or aren't understood?", options: q4Options, selection: $q4Selection)
-                    QuestionPicker(title: "5. When the person speaks, how grammatically correct are their sentences?", options: q5Options, selection: $q5Selection)
-                }
+                    QuestionCard(title: "1. How many different words does the person regularly use when speaking?", options: q1Options, selection: $q1Selection)
+                    QuestionCard(title: "2. Does the person usually form sentences or combine words into longer utterances?", options: q2Options, selection: $q2Selection)
+                    QuestionCard(title: "3. How often is what they say relevant and accurate to the conversation?", options: q3Options, selection: $q3Selection)
+                    QuestionCard(title: "4. Does the person seem aware when their words don't make sense or aren't understood?", options: q4Options, selection: $q4Selection)
+                    QuestionCard(title: "5. When the person speaks, how grammatically correct are their sentences?", options: q5Options, selection: $q5Selection)
 
-                Button("Get Recommendation") {
-                    determineRecommendation()
+                    Button("Get Recommendation") {
+                        determineRecommendation()
+                        withAnimation {
+                            showRecommendation = true
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing))
+                    .foregroundColor(.white)
+                    .font(.headline)
+                    .cornerRadius(15)
+                    .shadow(radius: 5)
+                    .padding(.top)
+
+                    Spacer()
                 }
                 .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-
-                if !recommendation.isEmpty {
-                    Text("\nRecommended Mode(s):\n")
-                        .font(.title2)
-                    Text(recommendation)
-                        .font(.title3)
-                        .foregroundColor(.green)
-                }
-
-                Spacer()
+                .background(Color(UIColor.systemGroupedBackground))
             }
-            .padding()
+
+            // Full-Screen Modal for Recommendation
+            if showRecommendation {
+                Color.black.opacity(0.5)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 30) {
+                    Text("Recommended Mode")
+                        .font(.largeTitle)
+                        .bold()
+
+                    Text(recommendation)
+                        .font(.title)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                        .background(Color.green.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(15)
+
+                    Button("Close") {
+                        withAnimation {
+                            showRecommendation = false
+                        }
+                    }
+                    .padding()
+                    .frame(width: 200)
+                    .background(Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(25)
+                .shadow(radius: 20)
+                .padding(40)
+            }
         }
         .navigationTitle("Survey")
     }
 
     func determineRecommendation() {
-        // Severe deficits → Mode 1 only
         if q1Selection == "Fewer than 10" || q2Selection.contains("single words") {
             recommendation = "Mode 1 (Symbol-Based Interface)"
             return
@@ -933,42 +1010,48 @@ struct SurveyView: View {
             recommendation = "Mode 1 (Symbol-Based Interface)"
             return
         }
-
-        // Moderate expressive deficits → Mode 1 + Mode 2
         if q5Selection.contains("telegraphic") {
             recommendation = "Mode 1 + Mode 2"
             return
         }
-
-        // Fluent but grammatically broken → Mode 2 only
         if q2Selection.contains("full sentences") && q3Selection.contains("Usually") && q4Selection.contains("Yes – often tries to fix errors") {
             recommendation = "Mode 2 (Sentence Refining Tool)"
             return
         }
-
-        // Default case
         recommendation = "Mode 1 + Mode 2"
     }
-
 }
 
-struct QuestionPicker: View {
+struct QuestionCard: View {
     let title: String
     let options: [String]
     @Binding var selection: String
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 15) {
             Text(title)
                 .font(.headline)
 
-            Picker(selection: $selection, label: Text("")) {
-                ForEach(options, id: \ .self) { option in
-                    Text(option).tag(option)
+            VStack(spacing: 10) {
+                ForEach(options, id: \.self) { option in
+                    Button(action: {
+                        selection = option
+                    }) {
+                        Text(option)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(selection == option ? Color.blue : Color.gray.opacity(0.1))
+                            .foregroundColor(selection == option ? .white : .primary)
+                            .cornerRadius(10)
+                    }
                 }
             }
-            .pickerStyle(.inline)
         }
+        .padding()
+        .background(Color(UIColor.systemGray6))  // <-- Softer card background
+        .cornerRadius(15)
+        .shadow(radius: 3)
+        .padding(.vertical, 4)
     }
 }
 

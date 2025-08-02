@@ -870,96 +870,87 @@ struct WordPanel: View {
 }
 import SwiftUI
 
-struct CaregiverSurveyView: View {
-    @State private var answers: [Int?] = Array(repeating: nil, count: 5)
-    @State private var showResult = false
-    
-    let questions = [
-        "How well can your loved one understand spoken language?",
-        "How clearly can they express their thoughts verbally?",
-        "Do they often use the wrong words or say things that don't make sense?",
-        "How independent are they with communication needs?",
-        "How often do they rely on visual cues (like pictures or gestures)?"
-    ]
+struct SurveyView: View {
+    @State private var q1Selection = ""
+    @State private var q2Selection = ""
+    @State private var q3Selection = ""
+    @State private var q4Selection = ""
+    @State private var q5Selection = ""
+    @State private var recommendation = ""
 
-    let options = [
-        "Not at all",
-        "Somewhat",
-        "Moderately",
-        "Quite a bit",
-        "Extremely"
-    ]
+    let q1Options = ["Fewer than 10", "10 to 50", "More than 50"]
+    let q2Options = ["No – mostly single words or short phrases", "Yes – attempts full sentences, though they may be ungrammatical", "Yes – mostly fluent and complete sentences"]
+    let q3Options = ["Rarely – often off-topic", "Sometimes – on-topic, but hard to follow", "Usually – stays on topic"]
+    let q4Options = ["No – unaware of mistakes", "Sometimes – some awareness", "Yes – often tries to fix errors"]
+    let q5Options = ["Most sentences are broken or telegraphic", "Somewhat ungrammatical but understandable", "Mostly complete and grammatically correct"]
 
     var body: some View {
-        NavigationView {
-            Form {
-                ForEach(0..<questions.count, id: \ .self) { index in
-                    Section(header: Text(questions[index])) {
-                        Picker("", selection: Binding(
-                            get: { answers[index] ?? 0 },
-                            set: { answers[index] = $0 }
-                        )) {
-                            ForEach(0..<options.count, id: \ .self) { i in
-                                Text(options[i]).tag(i)
-                            }
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Aphasia Communication Mode Survey")
+                    .font(.largeTitle)
+                    .bold()
+
+                Group {
+                    QuestionPicker(title: "1. How many different words does the person regularly use when speaking?", options: q1Options, selection: $q1Selection)
+                    QuestionPicker(title: "2. Does the person usually form sentences or combine words into longer utterances?", options: q2Options, selection: $q2Selection)
+                    QuestionPicker(title: "3. How often is what they say relevant and accurate to the conversation?", options: q3Options, selection: $q3Selection)
+                    QuestionPicker(title: "4. Does the person seem aware when their words don't make sense or aren't understood?", options: q4Options, selection: $q4Selection)
+                    QuestionPicker(title: "5. When the person speaks, how grammatically correct are their sentences?", options: q5Options, selection: $q5Selection)
                 }
 
-                Button("See Mode Recommendation") {
-                    showResult = true
+                Button("Get Recommendation") {
+                    determineRecommendation()
                 }
-                .disabled(answers.contains(where: { $0 == nil }))
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+
+                if !recommendation.isEmpty {
+                    Text("\nRecommended Mode(s):\n")
+                        .font(.title2)
+                    Text(recommendation)
+                        .font(.title3)
+                        .foregroundColor(.green)
+                }
+
+                Spacer()
             }
-            .navigationTitle("Caregiver Survey")
-            .sheet(isPresented: $showResult) {
-                ModeRecommendationView(answers: answers.compactMap { $0 })
-            }
+            .padding()
+        }
+        .navigationTitle("Survey")
+    }
+
+    func determineRecommendation() {
+        if q1Selection == "Fewer than 10" || q2Selection.contains("single words") {
+            recommendation = "Mode 1 (Symbol-Based Interface)"
+        } else if q3Selection.contains("Rarely") || q4Selection.contains("No – unaware") {
+            recommendation = "Mode 1 (Symbol-Based Interface)"
+        } else if q5Selection.contains("telegraphic") {
+            recommendation = "Mode 1 + Mode 2"
+        } else {
+            recommendation = "Mode 1 + Mode 2"
         }
     }
 }
 
-struct ModeRecommendationView: View {
-    let answers: [Int]
-
-    var modeRecommendation: String {
-        let comprehension = answers[0]
-        let expression = answers[1]
-        let confusion = answers[2]
-        let independence = answers[3]
-        let visualCues = answers[4]
-
-        // Sample scoring logic
-        if expression <= 1 && comprehension <= 1 {
-            return "We recommend: Mode 1 (Symbol-Based Communication)."
-        } else if expression >= 3 && comprehension >= 3 && confusion <= 2 {
-            return "We recommend: Mode 2 (Sentence Refining Tool)."
-        } else {
-            return "We recommend: Both Modes (Symbol + Sentence Tool)."
-        }
-    }
+struct QuestionPicker: View {
+    let title: String
+    let options: [String]
+    @Binding var selection: String
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Survey Result")
-                .font(.title2).bold()
-
-            Text(modeRecommendation)
-                .multilineTextAlignment(.center)
-                .padding()
+        VStack(alignment: .leading) {
+            Text(title)
                 .font(.headline)
 
-            Button("Close") {
-                UIApplication.shared.windows.first?.rootViewController?.dismiss(animated: true)
+            Picker(selection: $selection, label: Text("")) {
+                ForEach(options, id: \ .self) { option in
+                    Text(option).tag(option)
+                }
             }
+            .pickerStyle(.inline)
         }
-        .padding()
-    }
-}
-
-struct CaregiverSurveyView_Previews: PreviewProvider {
-    static var previews: some View {
-        CaregiverSurveyView()
     }
 }

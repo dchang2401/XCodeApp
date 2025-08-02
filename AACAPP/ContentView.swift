@@ -103,7 +103,6 @@ struct PatientMenuView: View {
     }
 }
 
-
 struct CaregiverMenuView: View {
     var body: some View {
         VStack(spacing: 20) {
@@ -111,9 +110,14 @@ struct CaregiverMenuView: View {
                 .font(.largeTitle)
                 .bold()
 
-            Text("Tools for caregivers will appear here.")
-                .foregroundColor(.gray)
-                .padding()
+            NavigationLink("Communication Mode Survey") {
+                SurveyView()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.purple)
+            .foregroundColor(.white)
+            .cornerRadius(12)
 
             Spacer()
         }
@@ -121,9 +125,6 @@ struct CaregiverMenuView: View {
         .navigationTitle("Caregiver Mode")
     }
 }
-
-
-
 
 /*
 struct MainMenuView: View {
@@ -923,16 +924,32 @@ struct SurveyView: View {
     }
 
     func determineRecommendation() {
+        // Severe deficits → Mode 1 only
         if q1Selection == "Fewer than 10" || q2Selection.contains("single words") {
             recommendation = "Mode 1 (Symbol-Based Interface)"
-        } else if q3Selection.contains("Rarely") || q4Selection.contains("No – unaware") {
-            recommendation = "Mode 1 (Symbol-Based Interface)"
-        } else if q5Selection.contains("telegraphic") {
-            recommendation = "Mode 1 + Mode 2"
-        } else {
-            recommendation = "Mode 1 + Mode 2"
+            return
         }
+        if q3Selection.contains("Rarely") || q4Selection.contains("No – unaware") {
+            recommendation = "Mode 1 (Symbol-Based Interface)"
+            return
+        }
+
+        // Moderate expressive deficits → Mode 1 + Mode 2
+        if q5Selection.contains("telegraphic") {
+            recommendation = "Mode 1 + Mode 2"
+            return
+        }
+
+        // Fluent but grammatically broken → Mode 2 only
+        if q2Selection.contains("full sentences") && q3Selection.contains("Usually") && q4Selection.contains("Yes – often tries to fix errors") {
+            recommendation = "Mode 2 (Sentence Refining Tool)"
+            return
+        }
+
+        // Default case
+        recommendation = "Mode 1 + Mode 2"
     }
+
 }
 
 struct QuestionPicker: View {
@@ -954,3 +971,4 @@ struct QuestionPicker: View {
         }
     }
 }
+

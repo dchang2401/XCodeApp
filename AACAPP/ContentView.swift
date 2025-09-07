@@ -921,109 +921,131 @@ import SwiftUI
 import SwiftUI
 
 struct SurveyView: View {
-    @State private var q1Selection = ""
-    @State private var q2Selection = ""
-    @State private var q3Selection = ""
-    @State private var q4Selection = ""
-    @State private var q5Selection = ""
-    @State private var showRecommendation = false
+    @Environment(\.presentationMode) var presentationMode
+    @State private var currentQuestion = 0
+    @State private var selections = ["", "", "", "", ""]
+
+    @State private var navigateToResults = false
     @State private var recommendation = ""
 
-    let q1Options = ["Fewer than 10", "10 to 50", "More than 50"]
-    let q2Options = ["No – mostly single words or short phrases", "Yes – attempts full sentences, though they may be ungrammatical", "Yes – mostly fluent and complete sentences"]
-    let q3Options = ["Rarely – often off-topic", "Sometimes – on-topic, but hard to follow", "Usually – stays on topic"]
-    let q4Options = ["No – unaware of mistakes", "Sometimes – some awareness", "Yes – often tries to fix errors"]
-    let q5Options = ["Most sentences are broken or telegraphic", "Somewhat ungrammatical but understandable", "Mostly complete and grammatically correct"]
+    let questions = [
+        "1. How many different words does the person regularly use when speaking?",
+        "2. Does the person usually form sentences or combine words into longer utterances?",
+        "3. How often is what they say relevant and accurate to the conversation?",
+        "4. Does the person seem aware when their words don't make sense or aren't understood?",
+        "5. When the person speaks, how grammatically correct are their sentences?"
+    ]
+
+    let options = [
+        ["Fewer than 10", "10 to 50", "More than 50"],
+        ["No – mostly single words or short phrases", "Yes – attempts full sentences, though they may be ungrammatical", "Yes – mostly fluent and complete sentences"],
+        ["Rarely – often off-topic", "Sometimes – on-topic, but hard to follow", "Usually – stays on topic"],
+        ["No – unaware of mistakes", "Sometimes – some awareness", "Yes – often tries to fix errors"],
+        ["Most sentences are broken or telegraphic", "Somewhat ungrammatical but understandable", "Mostly complete and grammatically correct", "Not applicable"]
+    ]
 
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+        NavigationView {
+            ZStack {
+                LinearGradient(colors: [Color.blue.opacity(0.85), Color.purple.opacity(0.85)],
+                               startPoint: .topLeading,
+                               endPoint: .bottomTrailing)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 30) {
                     Text("Aphasia Communication Mode Survey")
                         .font(.largeTitle)
                         .bold()
-                        .padding(.bottom, 20)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .padding(.top, 40)
+                        .padding(.horizontal, 30)
 
-                    QuestionCard(title: "1. How many different words does the person regularly use when speaking?", options: q1Options, selection: $q1Selection)
-                    QuestionCard(title: "2. Does the person usually form sentences or combine words into longer utterances?", options: q2Options, selection: $q2Selection)
-                    QuestionCard(title: "3. How often is what they say relevant and accurate to the conversation?", options: q3Options, selection: $q3Selection)
-                    QuestionCard(title: "4. Does the person seem aware when their words don't make sense or aren't understood?", options: q4Options, selection: $q4Selection)
-                    QuestionCard(title: "5. When the person speaks, how grammatically correct are their sentences?", options: q5Options, selection: $q5Selection)
+                    Spacer()
 
-                    Button("Get Recommendation") {
-                        determineRecommendation()
-                        withAnimation {
-                            showRecommendation = true
+                    VStack(alignment: .center, spacing: 20) {
+                        Text(questions[currentQuestion])
+                            .font(.title2)
+                            .bold()
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        ForEach(options[currentQuestion], id: \.self) { option in
+                            OptionButtonView(option: option,
+                                             isSelected: selections[currentQuestion] == option) {
+                                selections[currentQuestion] = option
+                            }
                         }
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing))
-                    .foregroundColor(.white)
-                    .font(.headline)
-                    .cornerRadius(15)
-                    .shadow(radius: 5)
-                    .padding(.top)
+                    .background(Color.white.opacity(0.15))
+                    .cornerRadius(20)
+                    .shadow(radius: 10)
+
+                    Spacer()
+
+                    NavigationLink(
+                        destination: ResultsView(recommendation: recommendation),
+                        isActive: $navigateToResults
+                    ) {
+                        EmptyView()
+                    }
+
+                    Button(action: {
+                        if currentQuestion < questions.count - 1 {
+                            currentQuestion += 1
+                        } else {
+                            determineRecommendation()
+                            navigateToResults = true
+                        }
+                    }) {
+                        Text(currentQuestion == questions.count - 1 ? "See Result" : "Next")
+                            .bold()
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(colors: selections[currentQuestion].isEmpty ? [Color.gray.opacity(0.5), Color.gray.opacity(0.5)] : [Color.purple, Color.blue],
+                                               startPoint: .leading,
+                                               endPoint: .trailing)
+                            )
+                            .cornerRadius(15)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 30)
+                            .multilineTextAlignment(.center)
+                    }
+                    .disabled(selections[currentQuestion].isEmpty)
 
                     Spacer()
                 }
                 .padding()
-                .background(Color(UIColor.systemGroupedBackground))
             }
-
-            // Full-Screen Modal for Recommendation
-            if showRecommendation {
-                Color.black.opacity(0.5)
-                    .ignoresSafeArea()
-
-                VStack(spacing: 30) {
-                    Text("Recommended Mode")
-                        .font(.largeTitle)
-                        .bold()
-
-                    Text(recommendation)
-                        .font(.title)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                        .background(Color.green.opacity(0.8))
-                        .foregroundColor(.white)
-                        .cornerRadius(15)
-
-                    Button("Close") {
-                        withAnimation {
-                            showRecommendation = false
-                        }
-                    }
-                    .padding()
-                    .frame(width: 200)
-                    .background(Color.red)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-                }
-                .padding()
-                .background(Color.white)
-                .cornerRadius(25)
-                .shadow(radius: 20)
-                .padding(40)
-            }
+            .navigationBarHidden(true)
         }
-        .navigationTitle("Survey")
     }
 
     func determineRecommendation() {
-        if q1Selection == "Fewer than 10" || q2Selection.contains("single words") {
+        let q1 = selections[0]
+        let q2 = selections[1]
+        let q3 = selections[2]
+        let q4 = selections[3]
+        let q5 = selections[4]
+
+        if q1 == "Fewer than 10" || q2.contains("single words") {
             recommendation = "Mode 1 (Symbol-Based Interface)"
             return
         }
-        if q3Selection.contains("Rarely") || q4Selection.contains("No – unaware") {
+        if q3.contains("Rarely") || q4.contains("No – unaware") {
             recommendation = "Mode 1 (Symbol-Based Interface)"
             return
         }
-        if q5Selection.contains("telegraphic") {
+        if q5.contains("telegraphic") {
             recommendation = "Mode 1 + Mode 2"
             return
         }
-        if q2Selection.contains("full sentences") && q3Selection.contains("Usually") && q4Selection.contains("Yes – often tries to fix errors") {
+        if q2.contains("full sentences") && q3.contains("Usually") && q4.contains("Yes – often tries to fix errors") {
             recommendation = "Mode 2 (Sentence Refining Tool)"
             return
         }
@@ -1031,40 +1053,103 @@ struct SurveyView: View {
     }
 }
 
-struct QuestionCard: View {
-    let title: String
-    let options: [String]
-    @Binding var selection: String
+struct OptionButtonView: View {
+    let option: String
+    let isSelected: Bool
+    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Text(title)
-                .font(.headline)
-
-            VStack(spacing: 10) {
-                ForEach(options, id: \.self) { option in
-                    Button(action: {
-                        selection = option
-                    }) {
-                        Text(option)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(selection == option ? Color.blue : Color.gray.opacity(0.1))
-                            .foregroundColor(selection == option ? .white : .primary)
-                            .cornerRadius(10)
+        Button(action: action) {
+            Text(option)
+                .foregroundColor(isSelected ? .white : Color.blue.opacity(0.9))
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(
+                    Group {
+                        if isSelected {
+                            LinearGradient(colors: [Color.purple, Color.blue], startPoint: .leading, endPoint: .trailing)
+                        } else {
+                            Color.white.opacity(0.9)
+                        }
                     }
-                }
-            }
+                )
+                .cornerRadius(12)
+                .shadow(color: isSelected ? Color.purple.opacity(0.6) : .clear, radius: 8, x: 0, y: 4)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .background(Color(UIColor.systemGray6))  // <-- Softer card background
-        .cornerRadius(15)
-        .shadow(radius: 3)
-        .padding(.vertical, 4)
     }
 }
-import SwiftUI
-import Foundation
+
+struct ResultsView: View {
+    let recommendation: String
+    @Environment(\.presentationMode) var presentationMode
+
+    // Mode descriptions
+    let descriptions: [String: String] = [
+        "Mode 1 (Symbol-Based Interface)":
+        "This mode uses symbols and images to help users communicate by selecting visual icons instead of forming sentences.",
+        "Mode 2 (Sentence Refining Tool)":
+        "This mode assists users who can form sentences by refining and correcting their expressions for clearer communication.",
+        "Mode 1 + Mode 2":
+        "A combination of symbol-based input and sentence refining, providing flexibility for various communication needs."
+    ]
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [Color.blue.opacity(0.85), Color.purple.opacity(0.85)],
+                           startPoint: .topLeading,
+                           endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+
+            VStack(spacing: 30) {
+                Text("Recommended Mode")
+                    .font(.largeTitle)
+                    .bold()
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+
+                VStack(spacing: 16) {
+                    Text(recommendation)
+                        .font(.title2)
+                        .bold()
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(descriptions[recommendation] ?? "")
+                        .font(.body)
+                        .foregroundColor(.white.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 20)
+                }
+                .padding()
+                .background(Color.white.opacity(0.15))
+                .cornerRadius(25)
+                .shadow(radius: 15)
+
+                Button("Close") {
+                    presentationMode.wrappedValue.dismiss()
+                }
+                .padding()
+                .frame(width: 200)
+                .background(
+                    LinearGradient(colors: [Color.purple, Color.blue],
+                                   startPoint: .leading,
+                                   endPoint: .trailing)
+                )
+                .foregroundColor(.white)
+                .cornerRadius(15)
+                .shadow(radius: 8)
+            }
+            .padding()
+        }
+        .navigationBarBackButtonHidden(true)
+        .navigationTitle("Results")
+    }
+}
 
 // -----------------------------
 // MARK: - Model
